@@ -1,7 +1,5 @@
-streamlit>=1.36
+streamlit>=1.45
 pillow
 pillow-heif
 gspread>=6.0
 google-auth
-google-api-python-client
- 
