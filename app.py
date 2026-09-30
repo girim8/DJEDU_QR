@@ -30,10 +30,18 @@ import time
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
-import gspread
 import streamlit as st
-from google.oauth2.service_account import Credentials
 from PIL import Image, ImageOps
+
+# 시트 라이브러리가 없어도 앱은 뜨고 메일은 동작하도록 선택적 import
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+    SHEET_LIB_ERROR = ""
+except Exception as _e:  # ModuleNotFoundError 등
+    gspread = None
+    Credentials = None
+    SHEET_LIB_ERROR = f"{type(_e).__name__}: {_e}"
 
 try:  # 아이폰 HEIC 사진 지원
     from pillow_heif import register_heif_opener
@@ -419,6 +427,8 @@ class SheetConfig:
     @property
     def missing(self) -> list[str]:
         miss = []
+        if SHEET_LIB_ERROR:
+            miss.append("gspread 미설치(requirements.txt 확인)")
         if not self.sheet_id:
             miss.append("시트 ID")
         if not self.sa_email or not self.sa.get("private_key"):
@@ -442,7 +452,7 @@ class SheetConfig:
 
 
 @st.cache_resource(show_spinner=False)
-def sheet_client(sa_json: str) -> gspread.Client:
+def sheet_client(sa_json: str):
     import json
     info = json.loads(sa_json)
     # Secrets 에 \n 이 문자 그대로 들어간 경우 보정
@@ -451,7 +461,7 @@ def sheet_client(sa_json: str) -> gspread.Client:
     return gspread.authorize(creds)
 
 
-def open_worksheet(cfg: SheetConfig) -> gspread.Worksheet:
+def open_worksheet(cfg: SheetConfig):
     import json
     gc = sheet_client(json.dumps(cfg.sa, sort_keys=True))
     sh = gc.open_by_key(cfg.sheet_id)
@@ -778,6 +788,9 @@ def render_diag() -> None:
 
     st.divider()
     st.subheader("② 구글 시트")
+    if SHEET_LIB_ERROR:
+        st.error("시트 라이브러리 설치 안 됨 → requirements.txt 위치·내용 확인 후 Reboot")
+        st.code(SHEET_LIB_ERROR)
     (st.success if scfg.ready else st.error)(
         "설정 정상" if scfg.ready else f"누락: {', '.join(scfg.missing)}")
     for k, v in scfg.masked().items():
